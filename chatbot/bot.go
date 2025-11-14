@@ -133,14 +133,7 @@ func (b *Bot) resetDialog(ctx context.Context, userID int64, maxID int64) error 
 }
 
 func (b *Bot) handleHelp(ctx context.Context, userID int64) error {
-	if b.conf == nil {
-		return b.sendWithKeyboard(ctx, userID, BotStrings.NotAvailable, helpKeyboardLayout())
-	}
-	entries, err := b.conf.RootEntries(ctx)
-	if err != nil || len(entries) == 0 {
-		return b.sendWithKeyboard(ctx, userID, BotStrings.NotAvailable, helpKeyboardLayout())
-	}
-	return b.sendWithKeyboard(ctx, userID, BotStrings.WhichInfo, confluenceKeyboardLayout(entries))
+	return b.sendWithKeyboard(ctx, userID, BotStrings.HelpVPNNotice, helpKeyboardLayout())
 }
 
 func (b *Bot) handleConfluenceText(ctx context.Context, userID int64, lowered string) error {
