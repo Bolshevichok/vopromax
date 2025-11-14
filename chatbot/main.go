@@ -5,11 +5,13 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/joho/godotenv"
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
-	"github.com/max-messenger/max-bot-api-client-go/schemes"
+
+	"github.com/Bolshevichok/vopromax/chatbot/storage"
 )
 
 func main() {
@@ -28,10 +30,26 @@ func run() error {
 		return err
 	}
 
-	api, err := maxbot.New(cfg.MaxToken)
+	apiCfg := &maxAPIConfig{
+		baseURL:   ensureTrailingSlash(cfg.MaxAPIBase),
+		timeout:   int(cfg.MaxAPITimeout.Seconds()),
+		version:   cfg.MaxAPIVersion,
+		token:     cfg.MaxToken,
+		debug:     cfg.MaxDebug,
+		debugChat: cfg.MaxDebugChat,
+	}
+	api, err := maxbot.NewWithConfig(apiCfg)
 	if err != nil {
 		return err
 	}
+
+	store, err := storage.New(cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	qaClient := NewQAClient(cfg.QAHost)
+	confClient := NewConfluenceClient(cfg)
+	bot := NewBot(api, store, qaClient, confClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,19 +64,19 @@ func run() error {
 	log.Printf("Max bot started. QA host=%s", cfg.QAHost)
 
 	for upd := range api.GetUpdates(ctx) {
-		handleUpdate(api, upd)
+		bot.HandleUpdate(ctx, upd)
 	}
 
 	return ctx.Err()
 }
 
-func handleUpdate(api *maxbot.Api, upd interface{}) {
-	switch u := upd.(type) {
-	case *schemes.MessageCreatedUpdate:
-		log.Printf("message from %d: %s", u.Message.Sender.UserId, u.GetText())
-	case *schemes.MessageCallbackUpdate:
-		log.Printf("callback from %d payload=%s", u.Callback.User.UserId, u.Callback.Payload)
-	default:
-		log.Printf("update: %#v", u)
+func ensureTrailingSlash(base string) string {
+	trimmed := strings.TrimSpace(base)
+	if trimmed == "" {
+		return "https://platform-api.max.ru/"
 	}
+	if !strings.HasSuffix(trimmed, "/") {
+		trimmed += "/"
+	}
+	return trimmed
 }

@@ -34,7 +34,7 @@ func loadConfig() (Config, error) {
 	}
 
 	if cfg.MaxAPIBase == "" {
-		cfg.MaxAPIBase = "https://botapi.max.ru/"
+		cfg.MaxAPIBase = "https://platform-api.max.ru/"
 	}
 	if cfg.MaxAPIVersion == "" {
 		cfg.MaxAPIVersion = "1.2.5"
@@ -59,4 +59,12 @@ func loadConfig() (Config, error) {
 	}
 	cfg.SpacesRaw = strings.TrimSpace(cfg.SpacesRaw)
 	return cfg, nil
+}
+
+// ConfluenceSpaces returns parsed space keys from the raw env variable.
+func (c Config) ConfluenceSpaces() []string {
+	if c.SpacesRaw == "" {
+		return nil
+	}
+	return strings.Fields(c.SpacesRaw)
 }
