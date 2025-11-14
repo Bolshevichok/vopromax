@@ -56,7 +56,7 @@ services:
         image: vopromax/chatbot:latest
         container_name: vopromax-chatbot
         restart: unless-stopped
-        command: python main.py
+        command: chatbot
         env_file:
             - .env.docker
         depends_on:

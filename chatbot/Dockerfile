@@ -1,12 +1,22 @@
-FROM python:3.10.0-slim-buster
+FROM golang:1.22 AS builder
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-RUN pip install --upgrade pip
-COPY ./requirements.txt .
-RUN pip install -r requirements.txt
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/chatbot
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/chatbot /usr/local/bin/chatbot
+
+CMD ["chatbot"]
