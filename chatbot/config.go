@@ -2,31 +2,61 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"strings"
+	"time"
+
+	"github.com/caarlos0/env/v10"
 )
 
 // Config aggregates runtime configuration loaded from environment variables.
 type Config struct {
-	MaxToken   string
-	MaxAPIBase string
-	QAHost     string
+	MaxToken        string        `env:"MAX_ACCESS_TOKEN,required"`
+	MaxAPIBase      string        `env:"MAX_API_BASE"`
+	MaxAPIVersion   string        `env:"MAX_API_VERSION"`
+	MaxAPITimeout   time.Duration `env:"MAX_API_TIMEOUT"`
+	MaxDebug        bool          `env:"MAX_API_DEBUG"`
+	MaxDebugChat    int64         `env:"MAX_DEBUG_CHAT"`
+	QAHost          string        `env:"QA_HOST"`
+	DatabaseURL     string        `env:"DATABASE_URL"`
+	PostgresUser    string        `env:"POSTGRES_USER"`
+	PostgresPass    string        `env:"POSTGRES_PASSWORD"`
+	PostgresHost    string        `env:"POSTGRES_HOST"`
+	PostgresDB      string        `env:"POSTGRES_DB"`
+	ConfluenceHost  string        `env:"CONFLUENCE_HOST"`
+	ConfluenceToken string        `env:"CONFLUENCE_TOKEN"`
+	SpacesRaw       string        `env:"CONFLUENCE_SPACES"`
 }
 
 func loadConfig() (Config, error) {
-	cfg := Config{
-		MaxToken:   os.Getenv("MAX_ACCESS_TOKEN"),
-		MaxAPIBase: os.Getenv("MAX_API_BASE"),
-		QAHost:     os.Getenv("QA_HOST"),
+	cfg := Config{}
+	if err := env.Parse(&cfg); err != nil {
+		return Config{}, err
 	}
 
-	if cfg.MaxToken == "" {
-		return Config{}, fmt.Errorf("MAX_ACCESS_TOKEN is not set")
-	}
 	if cfg.MaxAPIBase == "" {
-		cfg.MaxAPIBase = "https://platform-api.max.ru"
+		cfg.MaxAPIBase = "https://botapi.max.ru/"
+	}
+	if cfg.MaxAPIVersion == "" {
+		cfg.MaxAPIVersion = "1.2.5"
+	}
+	if cfg.MaxAPITimeout == 0 {
+		cfg.MaxAPITimeout = 30 * time.Second
 	}
 	if cfg.QAHost == "" {
 		cfg.QAHost = "qa:8080"
 	}
+	if cfg.DatabaseURL == "" {
+		if cfg.PostgresUser == "" || cfg.PostgresPass == "" || cfg.PostgresHost == "" || cfg.PostgresDB == "" {
+			return Config{}, fmt.Errorf("database configuration is incomplete")
+		}
+		cfg.DatabaseURL = fmt.Sprintf(
+			"postgresql://%s:%s@%s/%s?sslmode=disable",
+			cfg.PostgresUser,
+			cfg.PostgresPass,
+			cfg.PostgresHost,
+			cfg.PostgresDB,
+		)
+	}
+	cfg.SpacesRaw = strings.TrimSpace(cfg.SpacesRaw)
 	return cfg, nil
 }

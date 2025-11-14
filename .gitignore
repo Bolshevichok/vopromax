@@ -10,3 +10,5 @@ cache
 node_modules
 database*.csv
 qa/research
+vendor
+*.exe
