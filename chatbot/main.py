@@ -14,14 +14,10 @@ from confluence_interaction import (
 )
 from database import (
     add_user,
-    get_user_id,
     subscribe_user,
-    check_subscribing,
     check_spam,
     add_question_answer,
     rate_answer,
-    get_subscribed_users,
-    get_today_holidays,
     get_history_of_chat,
     filter_chat_history,
     set_stop_point,
@@ -42,7 +38,11 @@ def _auth_header() -> Dict[str, str]:
 
 
 def _truncate(text: str | bytes, limit: int = 500) -> str:
-    s = text.decode("utf-8", errors="ignore") if isinstance(text, (bytes, bytearray)) else str(text)
+    s = (
+        text.decode("utf-8", errors="ignore")
+        if isinstance(text, (bytes, bytearray))
+        else str(text)
+    )
     return s if len(s) <= limit else s[:limit] + "…"
 
 
@@ -72,10 +72,14 @@ async def send_max_message(
     )
     try:
         async with ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload, timeout=15) as r:
+            async with session.post(
+                url, headers=headers, json=payload, timeout=15
+            ) as r:
                 if r.status >= 400:
                     body = await r.text()
-                    logging.error("Max send failed: status=%s body=%s", r.status, _truncate(body))
+                    logging.error(
+                        "Max send failed: status=%s body=%s", r.status, _truncate(body)
+                    )
                     return False
                 logging.debug("Max send ok: status=%s", r.status)
                 return True
@@ -84,7 +88,9 @@ async def send_max_message(
         return False
 
 
-def max_inline_keyboard(button_rows: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+def max_inline_keyboard(
+    button_rows: List[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
     return [
         {
             "type": "inline_keyboard",
@@ -105,17 +111,17 @@ def confluence_keyboard(question_types: list) -> List[Dict[str, Any]]:
     for item in question_types:
         title = item["content"]["title"]
         pid = item["content"]["id"]
-        rows.append([
-            {"type": "callback", "text": title, "payload": f"conf_id:{pid}"}
-        ])
+        rows.append([{"type": "callback", "text": title, "payload": f"conf_id:{pid}"}])
     return max_inline_keyboard(rows)
 
 
 def rating_keyboard(qa_id: int) -> List[Dict[str, Any]]:
-    rows = [[
-        {"type": "callback", "text": "👎", "payload": f"rate:1:{qa_id}"},
-        {"type": "callback", "text": "❤", "payload": f"rate:5:{qa_id}"},
-    ]]
+    rows = [
+        [
+            {"type": "callback", "text": "👎", "payload": f"rate:1:{qa_id}"},
+            {"type": "callback", "text": "❤", "payload": f"rate:5:{qa_id}"},
+        ]
+    ]
     return max_inline_keyboard(rows)
 
 
@@ -140,7 +146,9 @@ async def get_answer(question: str, user_id: int) -> tuple[str, str | None]:
                     logging.debug("QA response 200: keys=%s", list(data.keys()))
                     return data.get("answer", ""), data.get("confluence_url")
                 body = await resp.text()
-                logging.error("QA service error: status=%s body=%s", resp.status, _truncate(body))
+                logging.error(
+                    "QA service error: status=%s body=%s", resp.status, _truncate(body)
+                )
                 return "", None
     except Exception as e:
         logging.exception("QA request failed: %s", e)
@@ -150,7 +158,9 @@ async def get_answer(question: str, user_id: int) -> tuple[str, str | None]:
 async def handle_help(recipient_id: int | str):
     question_types = make_markup_by_confluence()
     attachments = confluence_keyboard(question_types)
-    await send_max_message(recipient_id, Strings.WhichInfoDoYouWant, attachments=attachments)
+    await send_max_message(
+        recipient_id, Strings.WhichInfoDoYouWant, attachments=attachments
+    )
 
 
 async def handle_conf_callback(recipient_id: int | str, payload: str):
@@ -158,30 +168,54 @@ async def handle_conf_callback(recipient_id: int | str, payload: str):
     parse = parse_confluence_by_page_id(conf_id)
     if isinstance(parse, list):
         attachments = confluence_keyboard(parse)
-        await send_max_message(recipient_id, Strings.WhichInfoDoYouWant, attachments=attachments)
+        await send_max_message(
+            recipient_id, Strings.WhichInfoDoYouWant, attachments=attachments
+        )
     elif isinstance(parse, str):
         await send_max_message(recipient_id, parse)
 
 
-def _extract_sender_and_text(payload: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def _extract_sender_and_text(
+    payload: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     ev_type = payload.get("type") or payload.get("event", {}).get("type")
     data = payload.get("data") or payload.get("event", {}).get("data") or payload
     sender_id = None
     text = None
     cb_payload = None
     if ev_type in ("message", "message_new", "message.new"):
-        sender_id = str(data.get("from") or data.get("sender_id") or data.get("user_id") or data.get("chat_id") or "")
+        sender_id = str(
+            data.get("from")
+            or data.get("sender_id")
+            or data.get("user_id")
+            or data.get("chat_id")
+            or ""
+        )
         text = (data.get("text") or "").strip()
     elif ev_type in ("message_callback", "message.callback"):
-        sender_id = str(data.get("user_id") or data.get("from") or data.get("sender_id") or "")
+        sender_id = str(
+            data.get("user_id") or data.get("from") or data.get("sender_id") or ""
+        )
         cb_payload = data.get("payload") or data.get("callback_payload")
     else:
         msg = data.get("message") or {}
-        sender_id = str(msg.get("from") or msg.get("sender_id") or msg.get("user_id") or data.get("user_id") or "")
+        sender_id = str(
+            msg.get("from")
+            or msg.get("sender_id")
+            or msg.get("user_id")
+            or data.get("user_id")
+            or ""
+        )
         text = (msg.get("text") or data.get("text") or "").strip()
     if sender_id == "":
         sender_id = None
-    logging.debug("Extracted event: type=%s sender=%s has_text=%s has_cb=%s", ev_type, sender_id, bool(text), bool(cb_payload))
+    logging.debug(
+        "Extracted event: type=%s sender=%s has_text=%s has_cb=%s",
+        ev_type,
+        sender_id,
+        bool(text),
+        bool(cb_payload),
+    )
     return sender_id, text, cb_payload
 
 
@@ -190,7 +224,9 @@ async def handle_rate_payload(recipient_id: str, payload: str):
         _, score_s, qa_id_s = payload.split(":", 2)
         score = int(score_s)
         qa_id = int(qa_id_s)
-        logging.info("Rate payload: user=%s qa_id=%s score=%s", recipient_id, qa_id, score)
+        logging.info(
+            "Rate payload: user=%s qa_id=%s score=%s", recipient_id, qa_id, score
+        )
         if score == 5:
             try:
                 async with ClientSession() as session:
@@ -213,12 +249,16 @@ async def process_text_message(recipient_id: str, text: str):
     except Exception:
         logging.error("Non-numeric Max user id: %s (DB expects int).", recipient_id)
         return
-    is_added, user_db_id = add_user(engine, vk_id=numeric_id)
+    is_added, user_db_id = add_user(engine, max_id=numeric_id)
     logging.debug("User ensured: added=%s user_db_id=%s", is_added, user_db_id)
     lowered = text.lower()
     if lowered in (Strings.Start, Strings.StartEnglish):
         logging.info("Start command from user=%s", recipient_id)
-        await send_max_message(recipient_id, Strings.FirstMessage, attachments=max_inline_keyboard(help_keyboard_rows()))
+        await send_max_message(
+            recipient_id,
+            Strings.FirstMessage,
+            attachments=max_inline_keyboard(help_keyboard_rows()),
+        )
         return
     if lowered == Strings.ConfluenceButton.lower():
         logging.info("Open help from user=%s", recipient_id)
@@ -228,12 +268,18 @@ async def process_text_message(recipient_id: str, text: str):
         is_subscribed = subscribe_user(engine, user_db_id)
         msg = Strings.SubscribeMessage if is_subscribed else Strings.UnsubscribeMessage
         logging.info("Toggle subscribe user=%s -> %s", recipient_id, is_subscribed)
-        await send_max_message(recipient_id, msg, attachments=max_inline_keyboard(help_keyboard_rows()))
+        await send_max_message(
+            recipient_id, msg, attachments=max_inline_keyboard(help_keyboard_rows())
+        )
         return
     if lowered == Strings.NewDialog.lower():
         logging.info("New dialog stop_point set by user=%s", recipient_id)
         set_stop_point(engine, user_db_id, True)
-        await send_max_message(recipient_id, Strings.DialogReset, attachments=max_inline_keyboard(help_keyboard_rows()))
+        await send_max_message(
+            recipient_id,
+            Strings.DialogReset,
+            attachments=max_inline_keyboard(help_keyboard_rows()),
+        )
         return
     if lowered.startswith("conf_id") or lowered.isdigit():
         logging.debug("Confluence id input user=%s text=%s", recipient_id, lowered)
@@ -241,7 +287,9 @@ async def process_text_message(recipient_id: str, text: str):
         parse = parse_confluence_by_page_id(conf_id)
         if isinstance(parse, list):
             attachments = confluence_keyboard(parse)
-            await send_max_message(recipient_id, Strings.WhichInfoDoYouWant, attachments=attachments)
+            await send_max_message(
+                recipient_id, Strings.WhichInfoDoYouWant, attachments=attachments
+            )
         elif isinstance(parse, str):
             await send_max_message(recipient_id, parse)
         return
@@ -249,12 +297,22 @@ async def process_text_message(recipient_id: str, text: str):
         parts = lowered.split()
         if len(parts) >= 3:
             try:
-                score = int(parts[1]); qa_id = int(parts[2])
-                logging.info("Rate message: user=%s qa_id=%s score=%s", recipient_id, qa_id, score)
+                score = int(parts[1])
+                qa_id = int(parts[2])
+                logging.info(
+                    "Rate message: user=%s qa_id=%s score=%s",
+                    recipient_id,
+                    qa_id,
+                    score,
+                )
                 if score == 5:
                     try:
                         async with ClientSession() as session:
-                            await session.post(f"http://{Config.QA_HOST}/answer_embed/", json={"answer_id": qa_id}, timeout=10)
+                            await session.post(
+                                f"http://{Config.QA_HOST}/answer_embed/",
+                                json={"answer_id": qa_id},
+                                timeout=10,
+                            )
                     except Exception:
                         logging.exception("answer_embed post failed")
                 if rate_answer(engine, qa_id, score):
@@ -264,18 +322,30 @@ async def process_text_message(recipient_id: str, text: str):
         return
     if len(text) < 4:
         logging.debug("Short text from user=%s len=%s", recipient_id, len(text))
-        await send_max_message(recipient_id, Strings.Less4Symbols, attachments=max_inline_keyboard(help_keyboard_rows()))
+        await send_max_message(
+            recipient_id,
+            Strings.Less4Symbols,
+            attachments=max_inline_keyboard(help_keyboard_rows()),
+        )
         return
     if check_spam(engine, user_db_id):
         logging.warning("Spam detected for user=%s", recipient_id)
-        await send_max_message(recipient_id, Strings.SpamWarning, attachments=max_inline_keyboard(help_keyboard_rows()))
+        await send_max_message(
+            recipient_id,
+            Strings.SpamWarning,
+            attachments=max_inline_keyboard(help_keyboard_rows()),
+        )
         return
     await send_max_message(recipient_id, Strings.TryFindAnswer)
     answer, confluence_url = await get_answer(text, user_db_id)
     qa_id = add_question_answer(engine, text, answer, confluence_url, user_db_id)
     if not confluence_url:
         logging.info("Not found in knowledge base for user=%s", recipient_id)
-        await send_max_message(recipient_id, Strings.NotFound, attachments=max_inline_keyboard(help_keyboard_rows()))
+        await send_max_message(
+            recipient_id,
+            Strings.NotFound,
+            attachments=max_inline_keyboard(help_keyboard_rows()),
+        )
         return
     if not answer:
         answer = Strings.NotAnswer
@@ -293,7 +363,9 @@ async def max_webhook(request: web.Request) -> web.Response:
     events = body if isinstance(body, list) else [body]
     logging.info("Webhook received: events=%s", len(events))
     for ev in events:
-        logging.debug("Event payload: %s", _truncate(json.dumps(ev, ensure_ascii=False)))
+        logging.debug(
+            "Event payload: %s", _truncate(json.dumps(ev, ensure_ascii=False))
+        )
         sender_id, text, cb = _extract_sender_and_text(ev)
         if not sender_id:
             logging.warning("Skip event without sender")
@@ -312,24 +384,16 @@ async def max_webhook(request: web.Request) -> web.Response:
 
 async def get_max_user_name(user_id: int | str) -> str:
     try:
-        url = f"{MAX_API_BASE}/me"; headers = _auth_header()
+        url = f"{MAX_API_BASE}/me"
+        headers = _auth_header()
         async with ClientSession() as session:
             async with session.get(url, headers=headers, timeout=8) as resp:
                 if resp.status == 200:
-                    j = await resp.json(); return j.get("name") or "пользователь"
+                    j = await resp.json()
+                    return j.get("name") or "пользователь"
     except Exception:
         pass
     return "пользователь"
-
-
-async def on_cleanup(app: web.Application):
-    task = app.get("greetings_task")
-    if task:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
 
 
 if __name__ == "__main__":
@@ -342,5 +406,4 @@ if __name__ == "__main__":
     logging.info("Starting Max bot. API base=%s", MAX_API_BASE)
     app = web.Application()
     app.add_routes(routes)
-    app.on_cleanup.append(on_cleanup)
     web.run_app(app, port=5000)
