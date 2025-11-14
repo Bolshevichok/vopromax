@@ -1,15 +1,19 @@
-FROM postgres:14.4-alpine AS pgvector-builder
-RUN apk add git
-RUN apk add build-base
-RUN apk add clang
-RUN apk add llvm13-dev
-WORKDIR /home
-RUN git clone https://github.com/pgvector/pgvector.git
-WORKDIR /home/pgvector
+FROM postgres:14-bullseye AS builder
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    postgresql-server-dev-14 \
+    git \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /pgvector
+RUN git clone https://github.com/pgvector/pgvector.git .
 RUN make
 RUN make install
 
-FROM postgres:14.4-alpine
-COPY --from=pgvector-builder /usr/local/lib/postgresql/bitcode/vector.index.bc /usr/local/lib/postgresql/bitcode/vector.index.bc
-COPY --from=pgvector-builder /usr/local/lib/postgresql/vector.so /usr/local/lib/postgresql/vector.so
-COPY --from=pgvector-builder /usr/local/share/postgresql/extension /usr/local/share/postgresql/extension
+FROM postgres:14-bullseye
+COPY --from=builder /usr/lib/postgresql/14/lib/vector.so /usr/lib/postgresql/14/lib/vector.so
+COPY --from=builder /usr/share/postgresql/14/extension/vector.control /usr/share/postgresql/14/extension/vector.control
+COPY --from=builder /usr/share/postgresql/14/extension/vector--*.sql /usr/share/postgresql/14/extension/
+
+COPY hackathon.dump hackathon.dump
