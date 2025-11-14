@@ -33,7 +33,9 @@ class Config:
         Так же учти, что студенты обычно говорят "закрыть" предмет, вместо "сдать" или "получить зачет".
 
         Общайся дружелюбно, твоя задача - помогать адаптироваться в университете, однако помни: твои границы и нормы этики и морали - превыше всего!
+        """
 
+    MISTRAL_USER_PROMPT = """
         История диалога:
         \"\"\"
         {dialog_history}
@@ -167,18 +169,21 @@ class Config:
         Returns:
             dict: payload для LLM-модели.
         """
+        history_text = dialog_history.strip() or "Нет истории диалога"
+        kb_text = knowledge_base.strip() or "Фрагменты базы знаний не найдены"
+        question_text = question.strip() or "Вопрос не указан"
+
+        user_content = cls.MISTRAL_USER_PROMPT.format(
+            dialog_history=history_text,
+            knowledge_base=kb_text,
+            question=question_text,
+        )
+
         return {
             "model": cls.MISTRAL_MODEL,
             "messages": [
-                {"role": "system", "content": cls.MISTRAL_SYSTEM_PROMPT},
-                {
-                    "role": "system",
-                    "content": cls.MISTRAL_SYSTEM_PROMPT.format(
-                        dialog_history=dialog_history,
-                        knowledge_base=knowledge_base,
-                        question=question,
-                    ),
-                },
+                {"role": "system", "content": cls.MISTRAL_SYSTEM_PROMPT.strip()},
+                {"role": "user", "content": user_content.strip()},
             ],
             "temperature": 0.7,
             "max_tokens": 200,
@@ -219,59 +224,55 @@ class Config:
             dict: payload для модели-судьи.
         """
         if scorer:
+            scorer_content = (
+                f"Answer_text: {answer_text}\n\n"
+                f"Question_text: {question_text}\n\n"
+                f"Document fragment content: {content}"
+            )
             return {
                 "model": cls.JUDGE_MODEL,
                 "messages": [
                     {"role": "system", "content": cls.JUDGE_PROMPT},
-                    {
-                        "role": "system",
-                        "content": f"Answer_text: {answer_text}\n\nQuestion_text: {question_text}, \n\nDocument fragment content: {content}",
-                    },
+                    {"role": "user", "content": scorer_content},
                 ],
                 "temperature": 0.7,
                 "max_tokens": 200,
             }
 
         if generation:
+            generation_content = (
+                f"Dialog_history: {dialog_history}\n\n"
+                f"Answer_text: {answer_text}\n\n"
+                f"Question_text: {question_text}\n\n"
+                f"Document fragment content: {content}"
+            )
             return {
                 "model": cls.JUDGE_MODEL,
                 "messages": [
                     {"role": "system", "content": cls.JUDGE_PROMPT},
-                    {
-                        "role": "system",
-                        "content": f"Dialog_history: {dialog_history}\n\nAnswer_text: {answer_text}\n\nQuestion_text: {question_text}\n\nDocument fragment content: {content}",
-                    },
+                    {"role": "user", "content": generation_content},
                 ],
                 "temperature": 0.7,
                 "max_tokens": 200,
             }
         else:
             if dialog_history != "":
-                return {
-                    "model": cls.MISTRAL_MODEL,
-                    "messages": [
-                        {"role": "system", "content": cls.MISTRAL_SYSTEM_PROMPT},
-                        {
-                            "role": "system",
-                            "content": cls.MISTRAL_SYSTEM_PROMPT.format(
-                                dialog_history=dialog_history,
-                                knowledge_base=content,
-                                question=question_text,
-                            ),
-                        },
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 200,
-                }
+                return cls.get_default_prompt(
+                    dialog_history=dialog_history,
+                    knowledge_base=content,
+                    question=question_text,
+                )
             else:
+                judge_content = (
+                    f"Answer_text: {answer_text}\n\n"
+                    f"Question_text: {question_text} \n\n"
+                    f"Document fragment content: {content}"
+                )
                 return {
                     "model": cls.JUDGE_MODEL,
                     "messages": [
                         {"role": "system", "content": cls.JUDGE_PROMPT},
-                        {
-                            "role": "system",
-                            "content": f"Answer_text: {answer_text}\n\nQuestion_text: {question_text} \n\nDocument fragment content: {content}",
-                        },
+                        {"role": "user", "content": judge_content},
                     ],
                     "temperature": 0.7,
                     "max_tokens": 200,

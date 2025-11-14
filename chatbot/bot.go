@@ -43,9 +43,20 @@ func (b *Bot) HandleUpdate(ctx context.Context, upd schemes.UpdateInterface) {
 		if err := b.handlePayload(ctx, u.Callback.User.UserId, payload); err != nil {
 			log.Printf("handlePayload error: %v", err)
 		}
+	case *schemes.BotStartedUpdate:
+		if err := b.handleBotStarted(ctx, u.User.UserId); err != nil {
+			log.Printf("handleBotStarted error: %v", err)
+		}
 	default:
 		log.Printf("Unhandled update type: %s", upd.GetUpdateType())
 	}
+}
+
+func (b *Bot) handleBotStarted(ctx context.Context, userID int64) error {
+	if _, _, err := b.store.EnsureUser(ctx, userID); err != nil {
+		return err
+	}
+	return b.sendStart(ctx, userID)
 }
 
 func (b *Bot) handlePayload(ctx context.Context, userID int64, payload string) error {
@@ -233,7 +244,7 @@ func (b *Bot) answerQuestion(ctx context.Context, dbUserID int64, maxUserID int6
 	if strings.TrimSpace(answer) == "" {
 		answer = BotStrings.NotAnswer
 	}
-	msg := fmt.Sprintf("%s\n\n%s %s\n\nОцените ответ: ❤ или 👎 или 'rate 5 %d'", answer, BotStrings.SourceURL, url, qaID)
+	msg := fmt.Sprintf("%s\n\n%s %s\n\nОцените ответ: ❤ или 👎", answer, BotStrings.SourceURL, url)
 	return b.sendWithKeyboard(ctx, maxUserID, msg, ratingKeyboardLayout(qaID))
 }
 
@@ -249,6 +260,9 @@ func (b *Bot) sendMessage(ctx context.Context, userID int64, text string, builde
 		msg.AddKeyboard(keyboard)
 	}
 	_, err := b.api.Messages.Send(ctx, msg)
+	if apiErr, ok := err.(*schemes.Error); ok && apiErr.Code == "" {
+		return nil
+	}
 	return err
 }
 

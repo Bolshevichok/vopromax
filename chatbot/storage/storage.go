@@ -12,12 +12,17 @@ import (
 
 // User mirrors the legacy SQLAlchemy model.
 type User struct {
-	ID              int64            `gorm:"primaryKey"`
-	MaxID           int64            `gorm:"uniqueIndex"`
-	IsSubscribed    bool             `gorm:"not null"`
-	QuestionAnswers []QuestionAnswer `gorm:"foreignKey:UserID"`
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID             int64            `gorm:"primaryKey"`
+	MaxID          int64            `gorm:"uniqueIndex"`
+	IsSubscribed   bool             `gorm:"not null"`
+	QuestionAnswer []QuestionAnswer `gorm:"foreignKey:UserID"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// TableName enforces the legacy table naming convention.
+func (User) TableName() string {
+	return "user"
 }
 
 // QuestionAnswer stores user questions along with answers.
@@ -31,6 +36,11 @@ type QuestionAnswer struct {
 	StopPoint     bool  `gorm:"not null;default:false"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+// TableName enforces the legacy table naming convention.
+func (QuestionAnswer) TableName() string {
+	return "question_answer"
 }
 
 // Store wraps a GORM connection and exposes helper methods.
