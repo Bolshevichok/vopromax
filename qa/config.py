@@ -185,34 +185,6 @@ class Config:
         }
 
     @classmethod
-    def get_greeting_prompt(
-        cls, template: str, user_name: str, holiday_name: str
-    ) -> dict:
-        """Создаёт payload с промптом для генерации поздравлений для Mistral API,
-        подставляя имя пользователя и название праздника в системное сообщение.
-
-        Args:
-            template (str): шаблон для поздравления
-            user_name (str): имя пользователя
-            holiday_name (str): название праздника
-
-        Returns:
-            dict: payload для LLM-модели.
-        """
-        prompt = cls.MISTRAL_GREETING_PROMPT.format(
-            user_name=user_name, holiday_name=holiday_name
-        )
-        return {
-            "model": cls.MISTRAL_MODEL,
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": template},
-            ],
-            "temperature": 0.7,
-            "max_tokens": 200,
-        }
-
-    @classmethod
     def get_judge_headers(cls) -> dict:
         """Возвращает заголовки для запросов модели-судьи к Mistral API
         Returns:
