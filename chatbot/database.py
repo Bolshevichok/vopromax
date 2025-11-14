@@ -116,25 +116,19 @@ def add_user(
         return False, user.id
 
 
-def get_user_id(
-    engine: Engine,
-    vk_id: int | None = None,
-    telegram_id: int | None = None,
-    max_id: int | None = None,
-) -> int | None:
+def get_user_id(engine: Engine, max_id: int | None = None) -> int | None:
     """Функция получения из БД пользователя
 
     Args:
         engine (Engine): подключение к БД
-        max_id (int | None): id пользователя ВКонтакте
-        telegram_id (int | None): id пользователя Telegram
+        max_id (int | None): id пользователя МАХ
 
     Returns:
         int | None: id пользователя или None
     """
 
     with Session(engine) as session:
-        if vk_id is not None:
+        if max_id is not None:
             user = session.scalar(select(User).where(User.max_id == max_id))
 
         return user.id if user else None
@@ -157,24 +151,6 @@ def subscribe_user(engine: Engine, user_id: int) -> bool:
             return False
         user.is_subscribed = not user.is_subscribed
         session.commit()
-        return user.is_subscribed
-
-
-def check_subscribing(engine: Engine, user_id: int) -> bool:
-    """Функция проверки подписки пользователя на рассылку
-
-    Args:
-        engine (Engine): подключение к БД
-        user_id (int): id пользователя
-
-    Returns:
-        bool: подписан пользователь или нет
-    """
-
-    with Session(engine) as session:
-        user = session.scalars(select(User).where(User.id == user_id)).first()
-        if user is None:
-            return False
         return user.is_subscribed
 
 
@@ -255,31 +231,6 @@ def rate_answer(engine: Engine, question_answer_id: int, score: int) -> bool:
         return True
 
 
-def get_subscribed_users(engine: Engine) -> tuple[list[int | None], list[int | None]]:
-    """Функция для получения подписанных на рассылки пользователей
-
-    Args:
-        engine (Engine): подключение к БД
-
-    Returns:
-        tuple[list[int], list[int]]: кортеж списков с id пользователей VK и Telegram
-    """
-    with Session(engine) as session:
-        vk_users = [
-            user.vk_id
-            for user in session.execute(
-                select(User).where(and_(User.vk_id != None, User.is_subscribed))
-            ).scalars()
-        ]
-        tg_users = [
-            user.telegram_id
-            for user in session.execute(
-                select(User).where(and_(User.telegram_id != None, User.is_subscribed))
-            ).scalars()
-        ]
-    return vk_users, tg_users
-
-
 def get_history_of_chat(
     engine: Engine, user_id: int, time: int = 30, limit_pairs: int = 5
 ) -> List[QuestionAnswer]:
@@ -351,7 +302,7 @@ def filter_chat_history(
         return [], unanswered
 
     last_answer_time = max(qa.created_at for qa in pairs)
-    filtered_unanswered = [qa for qa in unanswered if qa.created_at > last_answer_time]
+    filtered_unanswered = [qa for qa in unanswered if qa.created_at > last_answer_time]  # type: ignore
 
     return pairs, filtered_unanswered
 
