@@ -21,9 +21,7 @@ def upgrade() -> None:
     op.drop_table("holiday_template")
     op.drop_table("admin")
 
-    with op.batch_alter_table("user") as batch_op:
-        batch_op.drop_constraint("telegram_id", type_="unique")
-        batch_op.drop_constraint("vk_id", type_="unique")
+    with op.batch_alter_table("user", schema="public") as batch_op:
         batch_op.drop_column("telegram_id")
         batch_op.drop_column("vk_id")
         batch_op.add_column(sa.Column("max_id", sa.Integer(), nullable=True))
